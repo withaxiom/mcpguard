@@ -1,0 +1,99 @@
+version: 2
+
+project_name: mcpguard
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: mcpguard
+    main: .
+    binary: mcpguard
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/withaxiom/mcpguard/cmd.Version={{.Version}}
+      - -X github.com/withaxiom/mcpguard/cmd.Commit={{.Commit}}
+      - -X github.com/withaxiom/mcpguard/cmd.Date={{.Date}}
+      - -X github.com/withaxiom/mcpguard/cmd.BuiltBy=goreleaser
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+brews:
+  - name: mcpguard
+    repository:
+      owner: withaxiom
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/withaxiom/mcpguard"
+    description: "MCP configuration security scanner — protect your AI tooling"
+    license: "MIT"
+    install: |
+      bin.install "mcpguard"
+    test: |
+      system "#{bin}/mcpguard", "version"
+
+release:
+  github:
+    owner: withaxiom
+    name: mcpguard
+  draft: false
+  prerelease: auto
+  name_template: "MCPGuard v{{.Version}}"
+  header: |
+    ## 🛡️ MCPGuard v{{.Version}}
+
+    Security scanner for MCP (Model Context Protocol) configurations.
+  footer: |
+    **Full Changelog**: https://github.com/withaxiom/mcpguard/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+    _Built with ⚡ by [AXIOM Collective](https://withaxiom.co)_
